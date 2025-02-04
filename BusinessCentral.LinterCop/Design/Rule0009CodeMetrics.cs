@@ -47,22 +47,35 @@ public class Rule0009CodeMetrics : DiagnosticAnalyzer
 
         var descendants = bodyNode.DescendantNodesAndTokens(e => true).ToArray();
 
-        int cyclomaticComplexity = GetCyclomaticComplexity(descendants);
-        double HalsteadVolume = GetHalsteadVolume(context, bodyNode, descendants, cyclomaticComplexity);
-
         if (LinterSettings.instance is null)
             LinterSettings.Create(context.SemanticModel.Compilation.FileSystem.GetDirectoryPath());
 
-        if (cyclomaticComplexity >= LinterSettings.instance.cyclomaticComplexityThreshold || Math.Round(HalsteadVolume) <= LinterSettings.instance.maintainabilityIndexThreshold)
+        int complexity;
+        int complexityThreshold;
+
+        if (LinterSettings.instance.useCognitiveComplexity)
         {
-            context.ReportDiagnostic(Diagnostic.Create(DiagnosticDescriptors.Rule0010CodeMetricsWarning, context.OwningSymbol.GetLocation(), new object[] { cyclomaticComplexity, LinterSettings.instance.cyclomaticComplexityThreshold, Math.Round(HalsteadVolume), LinterSettings.instance.maintainabilityIndexThreshold }));
+            complexity = GetCognitiveComplexity(descendants);
+            complexityThreshold = LinterSettings.instance.cognitiveComplexityThreshold;
+        }
+        else
+        {
+            complexity = GetCyclomaticComplexity(descendants);
+            complexityThreshold = LinterSettings.instance.cyclomaticComplexityThreshold;
+        }
+
+        double HalsteadVolume = GetHalsteadVolume(context, bodyNode, descendants, complexity);
+
+        if (complexity >= complexityThreshold || Math.Round(HalsteadVolume) <= LinterSettings.instance.maintainabilityIndexThreshold)
+        {
+            context.ReportDiagnostic(Diagnostic.Create(DiagnosticDescriptors.Rule0010CodeMetricsWarning, context.OwningSymbol.GetLocation(), new object[] { complexity, complexityThreshold, Math.Round(HalsteadVolume), LinterSettings.instance.maintainabilityIndexThreshold }));
             return;
         }
-        context.ReportDiagnostic(Diagnostic.Create(DiagnosticDescriptors.Rule0009CodeMetricsInfo, context.OwningSymbol.GetLocation(), new object[] { cyclomaticComplexity, LinterSettings.instance.cyclomaticComplexityThreshold, Math.Round(HalsteadVolume), LinterSettings.instance.maintainabilityIndexThreshold }));
+        context.ReportDiagnostic(Diagnostic.Create(DiagnosticDescriptors.Rule0009CodeMetricsInfo, context.OwningSymbol.GetLocation(), new object[] { complexity, complexityThreshold, Math.Round(HalsteadVolume), LinterSettings.instance.maintainabilityIndexThreshold }));
     }
 
     private static double GetHalsteadVolume(CodeBlockAnalysisContext context, SyntaxNode methodBodyNode,
-        SyntaxNodeOrToken[] descendantNodesAndTokens, int cyclomaticComplexity)
+        SyntaxNodeOrToken[] descendantNodesAndTokens, int complexity)
     {
         try
         {
@@ -88,7 +101,7 @@ public class Rule0009CodeMetrics : DiagnosticAnalyzer
             double HalsteadVolume = N * Math.Log(hashSet.Count, 2);
 
             //171−5.2lnV−0.23G−16.2lnL
-            return Math.Max(0, (171 - 5.2 * Math.Log(HalsteadVolume) - 0.23 * cyclomaticComplexity - 16.2 * Math.Log(triviaLinesCount)) * 100 / 171);
+            return Math.Max(0, (171 - 5.2 * Math.Log(HalsteadVolume) - 0.23 * complexity - 16.2 * Math.Log(triviaLinesCount)) * 100 / 171);
         }
         catch (System.NullReferenceException)
         {
@@ -99,6 +112,44 @@ public class Rule0009CodeMetrics : DiagnosticAnalyzer
     private static int GetCyclomaticComplexity(SyntaxNodeOrToken[] nodesAndTokens)
     {
         return nodesAndTokens.Count(syntaxNodeOrToken => IsComplexKind(syntaxNodeOrToken.Kind)) + 1;
+    }
+
+    private static int GetCognitiveComplexity(SyntaxNodeOrToken[] nodesAndTokens)
+    {
+        int complexity = 0;
+        int nestingLevel = 0;
+
+        foreach (var nodeOrToken in nodesAndTokens)
+        {
+            switch (nodeOrToken.Kind)
+            {
+                case SyntaxKind.IfKeyword:
+                case SyntaxKind.ElifKeyword:
+                case SyntaxKind.ForKeyword:
+                case SyntaxKind.ForEachKeyword:
+                case SyntaxKind.WhileKeyword:
+                case SyntaxKind.UntilKeyword:
+                case SyntaxKind.CaseLine:
+                    complexity++;
+                    nestingLevel++;
+                    break;
+                case SyntaxKind.LogicalAndExpression:
+                case SyntaxKind.LogicalOrExpression:
+                    complexity++;
+                    break;
+                case SyntaxKind.BreakKeyword:
+                // case SyntaxKind.ContinueKeyword:
+                //     complexity++;
+                //     break;
+                case SyntaxKind.EndKeyword:
+                    nestingLevel--;
+                    break;
+            }
+
+            complexity += nestingLevel;
+        }
+
+        return complexity;
     }
 
     private static bool IsOperandKind(SyntaxKind kind)

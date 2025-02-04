@@ -6,9 +6,11 @@ namespace BusinessCentral.LinterCop.Helpers
     class LinterSettings
     {
         public int cyclomaticComplexityThreshold = 8;
+        public int cognitiveComplexityThreshold = 10;
         public int maintainabilityIndexThreshold = 20;
         public bool enableRule0011ForTableFields = false;
         public bool enableRule0016ForApiObjects = false;
+        public bool useCognitiveComplexity = false;
         public string WorkingDir = "";
         static public LinterSettings instance;
 
@@ -25,9 +27,11 @@ namespace BusinessCentral.LinterCop.Helpers
 
                     InternalLinterSettings internalInstance = JsonConvert.DeserializeObject<InternalLinterSettings>(json);
                     instance.cyclomaticComplexityThreshold = internalInstance.cyclomaticComplexityThreshold ?? instance.cyclomaticComplexityThreshold;
+                    instance.cognitiveComplexityThreshold = internalInstance.cognitiveComplexityThreshold ?? instance.cognitiveComplexityThreshold;
                     instance.maintainabilityIndexThreshold = internalInstance.maintainabilityIndexThreshold ?? instance.maintainabilityIndexThreshold;
                     instance.enableRule0011ForTableFields = internalInstance.enableRule0011ForTableFields;
                     instance.enableRule0016ForApiObjects = internalInstance.enableRule0016ForApiObjects;
+                    instance.useCognitiveComplexity = internalInstance.useCognitiveComplexity;
                     instance.WorkingDir = WorkingDir;
                 }
                 catch
@@ -41,8 +45,10 @@ namespace BusinessCentral.LinterCop.Helpers
     internal class InternalLinterSettings
     {
         public int? cyclomaticComplexityThreshold;
+        public int? cognitiveComplexityThreshold;
         public int? maintainabilityIndexThreshold;
         public bool enableRule0011ForTableFields = false;
         public bool enableRule0016ForApiObjects = false;
+        public bool useCognitiveComplexity = false;
     }
 }
